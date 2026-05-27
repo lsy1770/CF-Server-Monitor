@@ -36,7 +36,7 @@ export async function handleAdminUI(request, env, sys) {
       const cmd = `${cmdApp} -sL ${host}/install.sh | bash -s install ${s.id} ${env.API_SECRET} ${host}/update 60`;
       
       trs += `
-        <tr class="server-row" draggable="true" data-server-id="${s.id}">
+        <tr class="server-row" data-server-id="${s.id}">
           <td class="drag-handle" style="text-align:center; cursor:move; user-select:none;" title="拖拽排序">⋮⋮</td>
           <td style="text-align:center;"><input type="checkbox" class="server-checkbox" value="${s.id}"></td>
           <td>
@@ -1413,7 +1413,17 @@ export async function handleAdminUI(request, env, sys) {
       const rows = document.querySelectorAll('.server-row');
       
       rows.forEach(row => {
+        const handle = row.querySelector('.drag-handle');
+        
+        handle.addEventListener('mousedown', function(e) {
+          row.setAttribute('draggable', 'true');
+        });
+        
         row.addEventListener('dragstart', function(e) {
+          if (!e.target.hasAttribute('draggable')) {
+            e.preventDefault();
+            return;
+          }
           draggedRow = this;
           this.classList.add('dragging');
           e.dataTransfer.effectAllowed = 'move';
@@ -1422,6 +1432,7 @@ export async function handleAdminUI(request, env, sys) {
         
         row.addEventListener('dragend', function() {
           this.classList.remove('dragging');
+          this.removeAttribute('draggable');
           document.querySelectorAll('.server-row').forEach(r => r.classList.remove('drag-over'));
           draggedRow = null;
           hideDragInfo();
