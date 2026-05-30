@@ -26,7 +26,7 @@
 3. **导入模拟数据**
    ```bash
    # 执行 SQL 导入数据
-   wrangler d1 execute cf-server-monitor-db --local --file=test/mock-data.sql
+   wrangler d1 execute server-monitor-db --local --file=test/mock-data.sql
    ```
 
 4. **启动本地开发服务器**

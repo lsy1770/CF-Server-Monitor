@@ -1,8 +1,4 @@
-const FRONTEND_FILES = {
-  'dashboard.html': null,
-  'server.html': null,
-  'admin.html': null
-};
+import { loadSettings } from '../utils/settings.js';
 
 let filesCache = null;
 
@@ -15,7 +11,9 @@ async function loadFrontendFiles(env) {
     // 尝试从 Cloudflare Pages/Asset 绑定读取
     if (env.ASSETS) {
       try {
-        for (const filename of Object.keys(FRONTEND_FILES)) {
+        // 主要文件
+        const mainFiles = ['index.html', 'style.css'];
+        for (const filename of mainFiles) {
           try {
             const res = await env.ASSETS.fetch(new Request(`http://static/${filename}`));
             if (res.ok) {
@@ -30,64 +28,63 @@ async function loadFrontendFiles(env) {
       }
     }
 
-    // 如果有文件直接使用
-    if (Object.keys(files).length > 0) {
-      filesCache = files;
-      return files;
-    }
-
-    // 回退到从 GitHub 加载（需修改为您的仓库）
-    const baseUrl = 'https://raw.githubusercontent.com/YOUR_USERNAME/CF-Server-Monitor/refs/heads/main/public';
-
-    for (const filename of Object.keys(FRONTEND_FILES)) {
-      try {
-        const res = await fetch(`${baseUrl}/${filename}`);
-        if (res.ok) {
-          files[filename] = await res.text();
-        }
-      } catch (e) {
-        console.error(`[WARN] Failed to load ${filename}:`, e);
-      }
-    }
-
     filesCache = files;
-    return files;
+    return filesCache;
   } catch (e) {
     console.error('[ERROR] Failed to load frontend files:', e);
     return {};
   }
 }
 
+function injectAppearanceSettings(html, settings) {
+  let modifiedHtml = html;
+
+  // 1. 注入 custom_head (在 </head> 标签前)
+  if (settings.custom_head) {
+    modifiedHtml = modifiedHtml.replace('</head>', `${settings.custom_head}\n</head>`);
+  }
+
+  // 2. 注入 custom_script (在 </body> 标签前)
+  if (settings.custom_script) {
+    modifiedHtml = modifiedHtml.replace('</body>', `<script>${settings.custom_script}</script>\n</body>`);
+  }
+
+  // 3. 注入 custom_bg (添加背景样式到 body)
+  if (settings.custom_bg) {
+    // 在 style 标签中添加背景样式
+    const bgStyle = `\n<style>\n  body { background-image: url('${settings.custom_bg}'); background-size: cover; background-attachment: fixed; background-position: center; }\n</style>\n`;
+    modifiedHtml = modifiedHtml.replace('</head>', `${bgStyle}\n</head>`);
+  }
+
+  return modifiedHtml;
+}
+
 export async function serveFrontend(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
 
-  let filename;
-
-  if (path === '/' || path === '/dashboard' || path === '/dashboard.html') {
-    filename = 'dashboard.html';
-  } else if (path === '/server' || path === '/server.html') {
-    filename = 'server.html';
-  } else if (path === '/admin' || path === '/admin.html') {
-    // Admin 页面由前端自己处理认证，不再使用 Basic Auth 弹窗
-    filename = 'admin.html';
-  } else {
-    return new Response('Not Found', { status: 404 });
-  }
-
   const files = await loadFrontendFiles(env);
-  const html = files[filename];
+  
+  // Vue SPA - 所有路由都返回 index.html
+  let html = files['index.html'];
 
   if (html) {
+    // 加载并注入外观设置
+    const settings = await loadSettings(env.DB);
+    html = injectAppearanceSettings(html, settings);
+
     return new Response(html, {
       headers: {
         'Content-Type': 'text/html;charset=UTF-8',
-        'Cache-Control': 'public, max-age=300'
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'CDN-Cache-Control': 'no-store'
       }
     });
   }
 
-  return new Response('Frontend not available. Please deploy to Cloudflare Pages or configure ASSETS binding.', {
+  return new Response('Frontend not available. Please build the frontend first with `npm run build:frontend`.', {
     status: 503,
     headers: { 'Content-Type': 'text/plain' }
   });

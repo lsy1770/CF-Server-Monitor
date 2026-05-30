@@ -300,17 +300,20 @@ curl -sL https://你的项目.你的子域.workers.dev/install.sh | bash -s unin
 ```bash
 # 安装依赖
 npm install
-
-# 创建本地配置文件
-echo "API_SECRET=your-dev-secret" > .dev.vars
-
+   ```
 # 创建 D1 数据库
 npx wrangler d1 create server-monitor-db
 
 # 更新 wrangler.toml 中的 database_id
 
+# 前端依赖
+npm run build:frontend
+
 # 启动本地开发服务器
 npm run dev
+
+# 导入测试数据
+见 /test/README.md 中的说明
 
 # 部署
 npm run deploy

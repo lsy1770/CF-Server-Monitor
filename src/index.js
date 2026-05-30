@@ -1,11 +1,10 @@
 import { initDatabase, cleanupOldData, getMetricsHistory, getAggregatedHistory } from './database/schema.js';
 import { handleAdminAPI } from './handlers/admin.js';
-import { handleAdminUI } from './handlers/admin-ui.js';
 import { serveFrontend } from './handlers/frontend.js';
 import { handleUpdate } from './handlers/update.js';
-import { handleDashboard, handleServerDetail, handleServerAPI, handleServersAPI } from './handlers/dashboard.js';
+import { handleServerAPI, handleServersAPI } from './handlers/dashboard.js';
 import { loadSettings } from './utils/settings.js';
-import { checkAuth, authResponse } from './middleware/auth.js';
+import { checkAuth, authResponse, simpleAuthResponse } from './middleware/auth.js';
 
 const historyCache = new Map();
 const CACHE_TTL = 60000;
@@ -13,6 +12,20 @@ const MAX_HOURS = 72;
 
 async function fetchHistoryData(env, request, id, hours, columns) {
   if (!id) return new Response('Missing ID', { status: 400 });
+  
+  const isLoggedIn = checkAuth(request, env);
+  const sys = await loadSettings(env.DB);
+  
+  // 如果关闭了公开访问，需要登录
+  if (sys.is_public !== 'true' && !isLoggedIn) {
+    return simpleAuthResponse();
+  }
+  let query = 'SELECT id FROM servers WHERE id = ?';
+  if (!isLoggedIn) {
+    query += " AND (is_hidden != '1' AND is_hidden != 1)";
+  }
+  const server = await env.DB.prepare(query).bind(id).first();
+  if (!server) return new Response('Not Found', { status: 404 });
   
   const clampedHours = Math.min(hours, MAX_HOURS);
   
@@ -38,6 +51,20 @@ async function fetchHistoryData(env, request, id, hours, columns) {
 
 async function fetchAggregatedHistoryData(env, request, id, hours, columns) {
   if (!id) return new Response('Missing ID', { status: 400 });
+  
+  const isLoggedIn = checkAuth(request, env);
+  const sys = await loadSettings(env.DB);
+  
+  // 如果关闭了公开访问，需要登录
+  if (sys.is_public !== 'true' && !isLoggedIn) {
+    return simpleAuthResponse();
+  }
+  let query = 'SELECT id FROM servers WHERE id = ?';
+  if (!isLoggedIn) {
+    query += " AND (is_hidden != '1' AND is_hidden != 1)";
+  }
+  const server = await env.DB.prepare(query).bind(id).first();
+  if (!server) return new Response('Not Found', { status: 404 });
   
   const clampedHours = Math.min(hours, MAX_HOURS);
   
@@ -69,6 +96,18 @@ export default {
     const method = request.method;
     const path = url.pathname;
 
+    // 首先尝试通过 ASSETS 提供静态资源
+    if (env.ASSETS && method === 'GET') {
+      try {
+        const res = await env.ASSETS.fetch(new Request(`http://static${path}`, request));
+        if (res.ok) {
+          return res;
+        }
+      } catch (e) {
+        // 忽略错误，继续路由处理
+      }
+    }
+
     async function handleManualCleanup() {
       if (!checkAuth(request, env)) {
         const sys = await loadSettings(env.DB);
@@ -84,13 +123,6 @@ export default {
 
     const routes = [
       { method: 'GET', path: '/clear', handler: handleManualCleanup },
-      { method: 'GET', path: '/', handler: async () => serveFrontend(request, env) },
-      { method: 'GET', path: '/dashboard', handler: async () => serveFrontend(request, env) },
-      { method: 'GET', path: '/dashboard.html', handler: async () => serveFrontend(request, env) },
-      { method: 'GET', path: '/server', handler: async () => serveFrontend(request, env) },
-      { method: 'GET', path: '/server.html', handler: async () => serveFrontend(request, env) },
-      { method: 'GET', path: '/admin', handler: async () => serveFrontend(request, env) },
-      { method: 'GET', path: '/admin.html', handler: async () => serveFrontend(request, env) },
       { method: 'POST', path: '/admin/api', handler: async () => {
         const sys = await loadSettings(env.DB);
         return handleAdminAPI(request, env, sys);
@@ -121,14 +153,6 @@ export default {
         const hours = parseFloat(url.searchParams.get('hours') || '24');
         const allColumns = 'cpu, ram, disk, processes, net_in_speed, net_out_speed, tcp_conn, udp_conn, ping_ct, ping_cu, ping_cm, ping_bd, swap_total, swap_used';
         return fetchAggregatedHistoryData(env, request, id, hours, allColumns);
-      }},
-      { method: 'GET', path: '/', handler: async () => {
-        const sys = await loadSettings(env.DB);
-        const viewId = url.searchParams.get('id');
-        if (viewId) {
-          return handleServerDetail(request, env, sys, viewId);
-        }
-        return handleDashboard(request, env, sys);
       }}
     ];
 
@@ -138,7 +162,8 @@ export default {
       }
     }
 
-    return new Response('Not Found', { status: 404 });
+    // 所有其他路由都返回 Vue SPA 页面
+    return serveFrontend(request, env);
   },
 
   async scheduled(event, env, ctx) {
