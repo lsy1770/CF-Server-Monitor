@@ -29,7 +29,7 @@ export async function handleAdminAPI(request, env, sys) {
     }
     else if (data.action === 'list') {
       const { results: servers } = await env.DB.prepare(
-        'SELECT id, name, server_group, price, expire_date, bandwidth, traffic_limit, country, is_hidden, sort_order FROM servers ORDER BY sort_order ASC'
+        'SELECT id, name, server_group, price, expire_date, bandwidth, traffic_limit, is_hidden, sort_order FROM servers ORDER BY sort_order ASC'
       ).all();
 
       const latestMetricsMap = await getLatestMetricsForAllServers(env.DB);
@@ -50,7 +50,15 @@ export async function handleAdminAPI(request, env, sys) {
         return {
           ...server,
           last_updated: lastUpdated,
-          is_online: isOnline
+          is_online: isOnline,
+          cpu_cores: latestMetrics?.cpu_cores || 0,
+          cpu_info: latestMetrics?.cpu_info || '',
+          arch: latestMetrics?.arch || '',
+          os: latestMetrics?.os || '',
+          country: latestMetrics?.country || server.country || '',
+          ip_v4: latestMetrics?.ip_v4 || '0',
+          ip_v6: latestMetrics?.ip_v6 || '0',
+          boot_time: latestMetrics?.boot_time || ''
         };
       });
 
@@ -118,20 +126,8 @@ export async function handleAdminAPI(request, env, sys) {
       
       await env.DB.prepare(`
         INSERT INTO servers 
-        (id, name, cpu, ram, disk, load_avg, 
-         ram_total, net_rx, net_tx, net_in_speed, net_out_speed, 
-         os, cpu_info, arch, boot_time, ram_used, swap_total, swap_used, 
-         disk_total, disk_used, processes, tcp_conn, udp_conn, 
-         country, ip_v4, ip_v6, server_group, price, expire_date, 
-         bandwidth, traffic_limit, ping_ct, ping_cu, ping_cm, ping_bd, 
-         sort_order) 
-        VALUES (?, ?, '0', '0', '0', '0', 
-                '0', '0', '0', '0', '0', 
-                '', '', '', '', '0', '0', '0', 
-                '0', '0', '0', '0', '0', 
-                'XX', '0', '0', ?, '', '', 
-                '', '', '0', '0', '0', '0', 
-                ?)
+        (id, name, server_group, sort_order) 
+        VALUES (?, ?, ?, ?)
       `).bind(id, name, group, sortOrder).run();
       
       return new Response(JSON.stringify({ 
@@ -282,7 +278,7 @@ export async function handleAdminAPI(request, env, sys) {
     }
     else if (data.action === 'get_stats') {
       const { results: servers } = await env.DB.prepare(
-        'SELECT id, name, country FROM servers'
+        'SELECT id, name FROM servers'
       ).all();
       
       const latestMetricsMap = await getLatestMetricsForAllServers(env.DB);

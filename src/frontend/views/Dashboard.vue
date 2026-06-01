@@ -121,8 +121,8 @@
               </td>
               <td><b>{{ server.name }}</b></td>
               <td>
-                <span v-if="server.country">
-                  <img :src="'https://flagcdn.com/24x18/' + (server.country || 'xx').toLowerCase() + '.png'" :alt="server.country" style="vertical-align: middle; border-radius: 2px; filter: brightness(0.9);">
+                <span v-if="server.country && server.country !== 'xx'">
+                  <img :src="'https://flagcdn.com/24x18/' + server.country.toLowerCase() + '.png'" :alt="server.country" style="vertical-align: middle; border-radius: 2px; filter: brightness(0.9);">
                 </span>
                 <span v-else>🏳️</span>
                 {{ (server.country || 'XX').toUpperCase() }}

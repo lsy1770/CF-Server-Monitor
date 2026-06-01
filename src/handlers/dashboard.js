@@ -46,6 +46,14 @@ export async function handleServerAPI(request, env, sys) {
     server.swap_used = latestMetrics.swap_used || 0;
     server.disk_total = latestMetrics.disk_total || 0;
     server.disk_used = latestMetrics.disk_used || 0;
+    server.cpu_cores = latestMetrics.cpu_cores || 0;
+    server.cpu_info = latestMetrics.cpu_info || '';
+    server.arch = latestMetrics.arch || '';
+    server.os = latestMetrics.os || '';
+    server.country = latestMetrics.country || '';
+    server.ip_v4 = latestMetrics.ip_v4 || '0';
+    server.ip_v6 = latestMetrics.ip_v6 || '0';
+    server.boot_time = latestMetrics.boot_time || '';
     server.last_updated = latestMetrics.timestamp || 0;
   }
   
@@ -108,6 +116,14 @@ export async function handleServersAPI(request, env, sys) {
       server.swap_used = latestMetrics.swap_used || 0;
       server.disk_total = latestMetrics.disk_total || 0;
       server.disk_used = latestMetrics.disk_used || 0;
+      server.cpu_cores = latestMetrics.cpu_cores || 0;
+      server.cpu_info = latestMetrics.cpu_info || '';
+      server.arch = latestMetrics.arch || '';
+      server.os = latestMetrics.os || '';
+      server.country = latestMetrics.country || '';
+      server.ip_v4 = latestMetrics.ip_v4 || '0';
+      server.ip_v6 = latestMetrics.ip_v6 || '0';
+      server.boot_time = latestMetrics.boot_time || '';
       server.last_updated = lastUpdated;
     }
     
@@ -120,9 +136,9 @@ export async function handleServersAPI(request, env, sys) {
     globalNetRx += parseFloat(server.net_rx || 0);
     globalNetTx += parseFloat(server.net_tx || 0);
     
-    let cCode = (server.country || 'xx').toUpperCase();
+    let cCode = (server.country || '').toUpperCase();
     if (cCode === 'TW') cCode = 'CN';
-    if (cCode !== 'XX') {
+    if (cCode !== '') {
       countryStats[cCode] = (countryStats[cCode] || 0) + 1;
     }
   }

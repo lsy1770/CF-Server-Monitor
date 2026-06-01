@@ -1,4 +1,5 @@
-import { initDatabase, cleanupOldData, cleanupStaleSettings, getMetricsHistory, getAggregatedHistory } from './database/schema.js';
+import { initDatabase, cleanupOldData, getMetricsHistory, getAggregatedHistory } from './database/schema.js';
+import { updateDatabase, cleanupStaleSettings } from './database/updateDatabase.js';
 import { handleAdminAPI } from './handlers/admin.js';
 import { serveFrontend } from './handlers/frontend.js';
 import { handleUpdate } from './handlers/update.js';
@@ -127,6 +128,19 @@ export default {
       });
     }
 
+    async function handleUpdateDatabase() {
+      if (!checkAuth(request, env)) {
+        const sys = await loadSettings(env.DB);
+        return authResponse(sys.admin_title);
+      }
+      
+      const result = await updateDatabase(env.DB);
+      
+      return new Response(JSON.stringify(result), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     async function handleGetConfig() {
       const enableLongRetention = env.LONG_RETENTION === 'true';
       return new Response(JSON.stringify({ enableLongRetention }), {
@@ -136,6 +150,7 @@ export default {
 
     const routes = [
       { method: 'GET', path: '/clear', handler: handleManualCleanup },
+      { method: 'GET', path: '/updateDatabase', handler: handleUpdateDatabase },
       { method: 'POST', path: '/admin/api', handler: async () => {
         const sys = await loadSettings(env.DB);
         return handleAdminAPI(request, env, sys);
@@ -182,7 +197,6 @@ export default {
 
   async scheduled(event, env, ctx) {
     await initDatabase(env.DB);
-    await cleanupStaleSettings(env.DB); // 清理已废弃的 settings key
     
     console.log('[Cron] 开始执行定时清理任务');
     const enableLongRetention = env.LONG_RETENTION === 'true';

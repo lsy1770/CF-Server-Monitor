@@ -120,8 +120,8 @@
                   <td style="text-align:center;"><input type="checkbox" class="server-checkbox" :value="server.id" v-model="selectedServers"></td>
                   <td>
                     <div style="display:flex; align-items:center; gap:8px;">
-                      <span v-if="server.country">
-                        <img :src="'https://flagcdn.com/24x18/' + (server.country || 'xx').toLowerCase() + '.png'" :alt="server.country" style="vertical-align: middle; border-radius: 2px; filter: brightness(0.9);">
+                      <span v-if="server.country && server.country !== 'xx'">
+                        <img :src="'https://flagcdn.com/24x18/' + server.country.toLowerCase() + '.png'" :alt="server.country" style="vertical-align: middle; border-radius: 2px; filter: brightness(0.9);">
                       </span>
                       <span v-else>🏳️</span>
                       <a :href="'/server/' + server.id" style="color:var(--text-primary); font-weight:bold; text-decoration:none;">{{ server.name }}</a>

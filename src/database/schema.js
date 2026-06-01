@@ -13,44 +13,16 @@ export async function initDatabase(db) {
       )
     `).run();
 
+    // 注意同步更新 updateDatabase.js 中的 CREATE TABLE servers_temp 否则会导致数据丢失
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS servers (
         id TEXT PRIMARY KEY,
         name TEXT,
-        cpu TEXT DEFAULT '0',
-        ram TEXT DEFAULT '0',
-        disk TEXT DEFAULT '0',
-        load_avg TEXT DEFAULT '0',
-        ram_total TEXT DEFAULT '0',
-        net_rx TEXT DEFAULT '0',
-        net_tx TEXT DEFAULT '0',
-        net_in_speed TEXT DEFAULT '0',
-        net_out_speed TEXT DEFAULT '0',
-        os TEXT DEFAULT '',
-        cpu_info TEXT DEFAULT '',
-        cpu_cores TEXT DEFAULT '0',
-        arch TEXT DEFAULT '',
-        boot_time TEXT DEFAULT '',
-        ram_used TEXT DEFAULT '0',
-        swap_total TEXT DEFAULT '0',
-        swap_used TEXT DEFAULT '0',
-        disk_total TEXT DEFAULT '0',
-        disk_used TEXT DEFAULT '0',
-        processes TEXT DEFAULT '0',
-        tcp_conn TEXT DEFAULT '0',
-        udp_conn TEXT DEFAULT '0',
-        country TEXT DEFAULT 'XX',
-        ip_v4 TEXT DEFAULT '0',
-        ip_v6 TEXT DEFAULT '0',
         server_group TEXT DEFAULT 'Default',
         price TEXT DEFAULT '',
         expire_date TEXT DEFAULT '',
         bandwidth TEXT DEFAULT '',
         traffic_limit TEXT DEFAULT '',
-        ping_ct TEXT DEFAULT '0',
-        ping_cu TEXT DEFAULT '0',
-        ping_cm TEXT DEFAULT '0',
-        ping_bd TEXT DEFAULT '0',
         is_hidden TEXT DEFAULT '0',
         sort_order INTEGER DEFAULT 0
       )
@@ -82,6 +54,14 @@ export async function initDatabase(db) {
         swap_used REAL DEFAULT 0,
         disk_total REAL DEFAULT 0,
         disk_used REAL DEFAULT 0,
+        cpu_cores INTEGER DEFAULT 0,
+        cpu_info TEXT DEFAULT '',
+        arch TEXT DEFAULT '',
+        os TEXT DEFAULT '',
+        country TEXT DEFAULT '',
+        ip_v4 TEXT DEFAULT '0',
+        ip_v6 TEXT DEFAULT '0',
+        boot_time TEXT DEFAULT '',
         FOREIGN KEY (server_id) REFERENCES servers(id)
       )
     `).run();
@@ -136,147 +116,10 @@ export async function initDatabase(db) {
       ON metrics_aggregated(server_id, bucket_size, bucket)
     `).run();
 
-    const { results: columns } = await db.prepare(`PRAGMA table_info(servers)`).all();
-    const existingCols = columns.map(c => c.name);
-    
-    const newCols = {
-      ping_ct: "TEXT DEFAULT '0'",
-      ping_cu: "TEXT DEFAULT '0'",
-      ping_cm: "TEXT DEFAULT '0'",
-      ping_bd: "TEXT DEFAULT '0'",
-      cpu_cores: "TEXT DEFAULT '0'",
-      is_hidden: "TEXT DEFAULT '0'",
-      sort_order: "INTEGER DEFAULT 0"
-    };
-
-    for (const [colName, colDef] of Object.entries(newCols)) {
-      if (!existingCols.includes(colName)) {
-        await db.prepare(`ALTER TABLE servers ADD COLUMN ${colName} ${colDef}`).run();
-      }
-    }
-
-    // 检查并修改 metrics_aggregated 表的 load_avg_avg 列类型
-    const { results: aggColumns } = await db.prepare(`PRAGMA table_info(metrics_aggregated)`).all();
-    const loadAvgAvgCol = aggColumns.find(c => c.name === 'load_avg_avg');
-    if (loadAvgAvgCol && loadAvgAvgCol.type !== 'TEXT') {
-      // SQLite 不支持直接修改列类型，需要重建表
-      try {
-        // 创建临时表
-        await db.prepare(`
-          CREATE TABLE metrics_aggregated_temp (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            server_id TEXT NOT NULL,
-            bucket INTEGER NOT NULL,
-            bucket_size INTEGER NOT NULL,
-            cpu_avg REAL DEFAULT 0,
-            cpu_max REAL DEFAULT 0,
-            ram_avg REAL DEFAULT 0,
-            ram_max REAL DEFAULT 0,
-            disk_avg REAL DEFAULT 0,
-            disk_max REAL DEFAULT 0,
-            load_avg_avg TEXT DEFAULT '0',
-            net_in_speed_avg REAL DEFAULT 0,
-            net_out_speed_avg REAL DEFAULT 0,
-            net_rx_avg REAL DEFAULT 0,
-            net_tx_avg REAL DEFAULT 0,
-            processes_avg REAL DEFAULT 0,
-            tcp_conn_avg REAL DEFAULT 0,
-            udp_conn_avg REAL DEFAULT 0,
-            ping_ct_avg REAL DEFAULT 0,
-            ping_cu_avg REAL DEFAULT 0,
-            ping_cm_avg REAL DEFAULT 0,
-            ping_bd_avg REAL DEFAULT 0,
-            ram_total_avg REAL DEFAULT 0,
-            ram_used_avg REAL DEFAULT 0,
-            swap_total_avg REAL DEFAULT 0,
-            swap_used_avg REAL DEFAULT 0,
-            disk_total_avg REAL DEFAULT 0,
-            disk_used_avg REAL DEFAULT 0,
-            FOREIGN KEY (server_id) REFERENCES servers(id),
-            UNIQUE(server_id, bucket, bucket_size)
-          )
-        `).run();
-        
-        // 复制数据
-        await db.prepare(`
-          INSERT INTO metrics_aggregated_temp (
-            id, server_id, bucket, bucket_size,
-            cpu_avg, cpu_max, ram_avg, ram_max, disk_avg, disk_max,
-            load_avg_avg, net_in_speed_avg, net_out_speed_avg,
-            net_rx_avg, net_tx_avg, processes_avg, tcp_conn_avg, udp_conn_avg,
-            ping_ct_avg, ping_cu_avg, ping_cm_avg, ping_bd_avg,
-            ram_total_avg, ram_used_avg, swap_total_avg, swap_used_avg,
-            disk_total_avg, disk_used_avg
-          )
-          SELECT 
-            id, server_id, bucket, bucket_size,
-            cpu_avg, cpu_max, ram_avg, ram_max, disk_avg, disk_max,
-            CAST(load_avg_avg AS TEXT), net_in_speed_avg, net_out_speed_avg,
-            net_rx_avg, net_tx_avg, processes_avg, tcp_conn_avg, udp_conn_avg,
-            ping_ct_avg, ping_cu_avg, ping_cm_avg, ping_bd_avg,
-            ram_total_avg, ram_used_avg, swap_total_avg, swap_used_avg,
-            disk_total_avg, disk_used_avg
-          FROM metrics_aggregated
-        `).run();
-        
-        // 删除旧表
-        await db.prepare(`DROP TABLE metrics_aggregated`).run();
-        
-        // 重命名临时表
-        await db.prepare(`ALTER TABLE metrics_aggregated_temp RENAME TO metrics_aggregated`).run();
-        
-        console.log('✅ 已成功修改 metrics_aggregated 表的 load_avg_avg 列为 TEXT 类型');
-      } catch (e) {
-        console.error('修改 metrics_aggregated 表失败:', e);
-      }
-    }
-
     console.log('✅ 数据库初始化完成');
     dbInitialized = true;
   } catch (e) {
     console.error('❌ 数据库初始化失败:', e);
-  }
-}
-
-export async function cleanupStaleSettings(db) {
-  console.log('开始清理废弃的 settings key...');
-  try {
-    const stalePrefixes = ['last_write_%'];
-    const staleExact = [
-      'theme',
-      'custom_css',
-      'auto_reset_traffic',
-      'last_aggregated_to_120',
-      'last_aggregated_to_240',
-      'last_aggregated_to_480',
-      'last_aggregated_to_960',
-      'last_aggregated_to_1920',
-      // 已合并到 appearance_options 的旧字段
-      'site_title',
-      'admin_title',
-      'custom_head',
-      'custom_script',
-      'custom_bg',
-      // 已合并到 site_options 的旧字段
-      'is_public',
-      'show_price',
-      'show_expire',
-      'show_bw',
-      'show_tf',
-      'tg_notify',
-      'tg_bot_token',
-      'tg_chat_id'
-    ];
-    const staleKeysWhere = stalePrefixes.map(() => `key LIKE ?`).concat(staleExact.map(() => `key = ?`)).join(' OR ');
-    const staleBindings = [...stalePrefixes, ...staleExact];
-    const { meta: cleanupResult } = await db.prepare(
-      `DELETE FROM settings WHERE ${staleKeysWhere}`
-    ).bind(...staleBindings).run();
-    if (cleanupResult.changes > 0) {
-      console.log(`已清理 ${cleanupResult.changes} 个废弃的 settings key`);
-    }
-  } catch (e) {
-    console.error('清理废弃 settings key 失败:', e);
   }
 }
 
@@ -952,7 +795,7 @@ export async function cleanupOldData(db, enableLongRetention = false, force = fa
   }
 }
 
-export async function saveMetricsHistory(db, serverId, metrics) {
+export async function saveMetricsHistory(db, serverId, metrics, countryCode = '') {
   try {
     const now = Date.now();
     await db.prepare(`
@@ -962,14 +805,16 @@ export async function saveMetricsHistory(db, serverId, metrics) {
         processes, tcp_conn, udp_conn,
         ping_ct, ping_cu, ping_cm, ping_bd,
         ram_total, ram_used, swap_total, swap_used,
-        disk_total, disk_used
+        disk_total, disk_used,
+        cpu_cores, cpu_info, arch, os, country, ip_v4, ip_v6, boot_time
       ) VALUES (
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?, ?,
-        ?, ?
+        ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       serverId,
@@ -994,7 +839,15 @@ export async function saveMetricsHistory(db, serverId, metrics) {
       parseFloat(metrics.swap_total) || 0,
       parseFloat(metrics.swap_used) || 0,
       parseFloat(metrics.disk_total) || 0,
-      parseFloat(metrics.disk_used) || 0
+      parseFloat(metrics.disk_used) || 0,
+      parseInt(metrics.cpu_cores) || 0,
+      metrics.cpu_info || '',
+      metrics.arch || '',
+      metrics.os || '',
+      countryCode,
+      metrics.ip_v4 || '0',
+      metrics.ip_v6 || '0',
+      metrics.boot_time || ''
     ).run();
   } catch (e) {
     console.error('保存历史数据失败:', e);

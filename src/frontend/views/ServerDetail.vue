@@ -24,8 +24,8 @@
       <div class="host-card-header">
         <div class="host-name">
           <span class="prompt">root@</span>
-          <span v-if="server.country">
-            <img :src="'https://flagcdn.com/24x18/' + (server.country || 'xx').toLowerCase() + '.png'" :alt="server.country" style="vertical-align: middle; margin-right: 6px; border-radius: 2px; filter: brightness(0.9);">
+          <span v-if="server.country && server.country !== 'xx'">
+            <img :src="'https://flagcdn.com/24x18/' + server.country.toLowerCase() + '.png'" :alt="server.country" style="vertical-align: middle; margin-right: 6px; border-radius: 2px; filter: brightness(0.9);">
           </span>
           <span v-else>🏳️</span>
           <span>{{ server.name || 'Loading...' }}</span>

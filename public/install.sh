@@ -182,9 +182,9 @@ get_ping() {
 }
 
 # 静态测试节点定义
-CT_NODES=("bj-ct-dualstack.ip.zstaticcdn.com" "sh-ct-dualstack.ip.zstaticcdn.com" "gd-ct-dualstack.ip.zstaticcdn.com")
-CU_NODES=("bj-cu-dualstack.ip.zstaticcdn.com" "sh-cu-dualstack.ip.zstaticcdn.com" "gd-cu-dualstack.ip.zstaticcdn.com")
-CM_NODES=("bj-cm-dualstack.ip.zstaticcdn.com" "sh-cm-dualstack.ip.zstaticcdn.com" "gd-cm-dualstack.ip.zstaticcdn.com")
+CT_NODES=("gd-ct-dualstack.ip.zstaticcdn.com")
+CU_NODES=("gd-cu-dualstack.ip.zstaticcdn.com")
+CM_NODES=("gd-cm-dualstack.ip.zstaticcdn.com")
 
 # ==============================================================================
 # 高并发/无竞态后台网络 Worker 协程
